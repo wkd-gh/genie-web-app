@@ -111,4 +111,4 @@ gcloud run deploy genie-web-app \
 ## Related
 
 - [airflow-etl-pipeline](https://github.com/Money-Digger/airflow-etl-pipeline) — 데이터 수집 및 Databricks 적재 파이프라인
-- [genie-slack-bot](https://github.com/Money-Digger/genie-slack-bot) — Slack Slash Command 기반 Genie 봇
+- [genie-slack-bot](https://github.com/Money-Digger/genie-slack-bot) — Slack Slash Command or Mention 기반 Genie 봇
