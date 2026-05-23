@@ -1,0 +1,7 @@
+.env
+logs/
+config/
+__pycache__/
+*.pyc
+.DS_Store
+first_request/csv/
