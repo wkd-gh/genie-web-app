@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="ko" class="h-full">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>회원가입 · Genie</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'ui-sans-serif'] },
+          colors: { brand: { 600:'#4f46e5', 700:'#4338ca' } },
+        },
+      },
+    };
+  </script>
+  <link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body class="flex h-full bg-slate-50 font-sans antialiased">
+
+  <!-- Left panel -->
+  <div class="hidden w-1/2 flex-col justify-between bg-[#0f1117] p-12 lg:flex">
+    <div class="flex items-center gap-3">
+      <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600">
+        <svg class="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z"/>
+        </svg>
+      </div>
+      <span class="text-lg font-semibold text-white">Genie</span>
+    </div>
+    <div class="space-y-6">
+      {% for step in [("계정 생성", "이메일과 비밀번호로 계정을 만드세요."), ("Genie 연결", "Databricks 연동 정보는 관리자가 설정합니다."), ("분석 시작", "자연어로 데이터에 관해 질문하세요.")] %}
+      <div class="flex items-start gap-4">
+        <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-600/20 text-sm font-semibold text-brand-400">{{ loop.index }}</div>
+        <div>
+          <p class="font-medium text-white">{{ step[0] }}</p>
+          <p class="mt-1 text-sm text-slate-400">{{ step[1] }}</p>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <p class="text-xs text-slate-600">© 2025 Genie Web App</p>
+  </div>
+
+  <!-- Right panel -->
+  <div class="flex flex-1 items-center justify-center px-6 py-12">
+    <div class="w-full max-w-sm">
+      <div class="mb-8 flex items-center gap-3 lg:hidden">
+        <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600">
+          <svg class="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z"/>
+          </svg>
+        </div>
+        <span class="text-lg font-semibold">Genie</span>
+      </div>
+
+      <h1 class="mb-1 text-2xl font-bold text-slate-900">계정 만들기</h1>
+      <p class="mb-8 text-sm text-slate-500">무료로 시작하세요</p>
+
+      {% if error %}
+      <div class="mb-6 flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <svg class="mt-0.5 h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z"/>
+        </svg>
+        {% if error == "email_exists" %}이미 사용 중인 이메일입니다.
+        {% elif error == "username_exists" %}이미 사용 중인 사용자명입니다.
+        {% elif error == "password_short" %}비밀번호는 8자 이상이어야 합니다.
+        {% else %}회원가입 중 오류가 발생했습니다.{% endif %}
+      </div>
+      {% endif %}
+
+      <form method="POST" action="/auth/register" class="space-y-5">
+        <div>
+          <label class="label-text" for="username">사용자명</label>
+          <input
+            id="username"
+            name="username"
+            type="text"
+            autocomplete="username"
+            required
+            minlength="2"
+            class="input-field mt-1"
+            placeholder="홍길동"
+          />
+        </div>
+        <div>
+          <label class="label-text" for="email">이메일</label>
+          <input
+            id="email"
+            name="email"
+            type="email"
+            autocomplete="email"
+            required
+            class="input-field mt-1"
+            placeholder="you@company.com"
+          />
+        </div>
+        <div>
+          <label class="label-text" for="password">비밀번호</label>
+          <input
+            id="password"
+            name="password"
+            type="password"
+            autocomplete="new-password"
+            required
+            minlength="8"
+            class="input-field mt-1"
+            placeholder="8자 이상"
+          />
+          <p class="mt-1.5 text-xs text-slate-400">8자 이상의 비밀번호를 사용하세요.</p>
+        </div>
+        <button type="submit" class="btn-primary w-full">계정 만들기</button>
+      </form>
+
+      <p class="mt-8 text-center text-sm text-slate-500">
+        이미 계정이 있으신가요?
+        <a href="/login" class="font-medium text-brand-600 hover:text-brand-700">로그인</a>
+      </p>
+    </div>
+  </div>
+</body>
+</html>

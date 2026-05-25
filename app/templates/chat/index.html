@@ -1,0 +1,524 @@
+{% extends "base.html" %}
+
+{% block title %}채팅{% endblock %}
+
+{% block content %}
+<div x-data="chatApp({{ current_session.id if current_session else 'null' }})">
+<div class="flex h-[calc(100vh-0px)] lg:h-screen">
+
+  <!-- Session sidebar -->
+  <div class="hidden w-64 shrink-0 flex-col border-r border-slate-200 bg-white xl:flex">
+    <div class="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+      <h2 class="text-sm font-semibold text-slate-700">대화 목록</h2>
+      <a href="/chat" class="flex h-7 w-7 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors" title="새 대화">
+        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
+        </svg>
+      </a>
+    </div>
+    <div class="flex-1 overflow-y-auto py-2">
+      {% if sessions %}
+      {% for s in sessions %}
+      <a
+        href="/chat/{{ s.id }}"
+        class="group flex items-start gap-2 px-3 py-2.5 hover:bg-slate-50 transition-colors {% if current_session and current_session.id == s.id %}bg-brand-50 border-r-2 border-brand-600{% endif %}"
+      >
+        <svg class="mt-0.5 h-4 w-4 shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 0 1 .865-.501 48.172 48.172 0 0 0 3.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z"/>
+        </svg>
+        <div class="min-w-0 flex-1">
+          <p class="truncate text-sm {% if current_session and current_session.id == s.id %}font-medium text-brand-700{% else %}text-slate-700{% endif %}">
+            {{ s.title }}
+          </p>
+          <p class="text-xs text-slate-400 mt-0.5">{{ s.updated_at.strftime('%m/%d %H:%M') }}</p>
+        </div>
+        <button
+          @click.prevent="deleteSession({{ s.id }})"
+          class="invisible mt-0.5 shrink-0 text-slate-300 hover:text-red-500 group-hover:visible transition-colors"
+          title="삭제"
+        >
+          <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </a>
+      {% endfor %}
+      {% else %}
+      <p class="px-4 py-6 text-center text-xs text-slate-400">아직 대화가 없습니다.<br/>새 질문을 입력해보세요.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Chat main -->
+  <div class="flex flex-1 flex-col min-w-0">
+    <!-- Chat header -->
+    <div class="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 lg:hidden xl:flex">
+      <div>
+        <h1 class="text-sm font-semibold text-slate-900">
+          {% if current_session %}{{ current_session.title }}{% else %}새 대화{% endif %}
+        </h1>
+        {% if current_session %}
+        <p class="text-xs text-slate-400">{{ current_session.created_at.strftime('%Y년 %m월 %d일') }}</p>
+        {% endif %}
+      </div>
+      <a href="/chat" class="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors">
+        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
+        </svg>
+        새 대화
+      </a>
+    </div>
+
+    <!-- Messages -->
+    <div class="flex-1 overflow-y-auto" id="chat-messages" x-ref="messages">
+      <div class="mx-auto max-w-3xl px-4 py-6 space-y-6">
+
+        <!-- Initial messages from server -->
+        {% for msg in messages %}
+        {% if msg.role == 'user' %}
+        <div class="flex justify-end">
+          <div class="max-w-[80%] rounded-2xl rounded-tr-sm bg-brand-600 px-4 py-3 text-sm text-white shadow-sm">
+            {{ msg.content }}
+          </div>
+        </div>
+        {% else %}
+        <div class="flex items-start gap-3">
+          <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-100 text-brand-700">
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z"/>
+            </svg>
+          </div>
+          <div class="flex-1 min-w-0 space-y-3">
+            {% if msg.error %}
+            <div class="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+              {% if msg.error == 'rate_limit' %}⚠️ 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.
+              {% elif msg.error == 'timeout' %}⚠️ 응답 시간이 초과됐습니다. 다시 시도해주세요.
+              {% else %}⚠️ 오류: {{ msg.error }}{% endif %}
+            </div>
+            {% endif %}
+            {% if msg.content %}
+            <div class="rounded-xl bg-white border border-slate-200 px-4 py-3 text-sm text-slate-800 shadow-sm leading-relaxed">
+              {{ msg.content | replace('\n', '<br>') | safe }}
+            </div>
+            {% endif %}
+            {% if msg.query_sql %}
+            <div class="rounded-xl overflow-hidden border border-slate-200 shadow-sm">
+              <div class="flex items-center justify-between bg-slate-800 px-4 py-2">
+                <span class="text-xs font-medium text-slate-300">생성된 SQL</span>
+                <button onclick="copySQL(this)" data-sql="{{ msg.query_sql | e }}" class="text-xs text-slate-400 hover:text-white transition-colors">복사</button>
+              </div>
+              <pre class="overflow-x-auto"><code class="language-sql text-xs">{{ msg.query_sql }}</code></pre>
+            </div>
+            {% endif %}
+            {% if msg.query_result %}
+            <div class="overflow-hidden rounded-xl border border-slate-200 shadow-sm">
+              <div class="bg-slate-50 px-4 py-2 border-b border-slate-200">
+                <span class="text-xs font-medium text-slate-600">조회 결과 ({{ msg.query_result | length }}행)</span>
+              </div>
+              <div class="overflow-x-auto">
+                <table class="data-table">
+                  <thead>
+                    <tr>{% for col in msg.query_result[0].keys() %}<th>{{ col }}</th>{% endfor %}</tr>
+                  </thead>
+                  <tbody>
+                    {% for row in msg.query_result[:20] %}
+                    <tr>{% for val in row.values() %}<td>{{ val if val is not none else '-' }}</td>{% endfor %}</tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+              {% if msg.query_result | length > 20 %}
+              <p class="px-4 py-2 text-xs text-slate-400 bg-slate-50 border-t border-slate-200">… 외 {{ (msg.query_result | length) - 20 }}개 행</p>
+              {% endif %}
+            </div>
+            {% endif %}
+            {% if msg.suggested_questions %}
+            <div class="flex flex-wrap gap-2 pt-1">
+              {% for q in msg.suggested_questions %}
+              <button
+                @click="$refs.input.value = '{{ q | e }}'; $refs.input.focus()"
+                class="rounded-full border border-brand-200 bg-brand-50 px-3 py-1 text-xs font-medium text-brand-700 hover:bg-brand-100 transition-colors"
+              >{{ q }}</button>
+              {% endfor %}
+            </div>
+            {% endif %}
+            {% if msg.query_result %}
+            <div class="flex items-center gap-2">
+              <button
+                data-rows="{{ msg.query_result | tojson | e }}"
+                data-sql="{{ msg.query_sql | e if msg.query_sql else '' }}"
+                onclick="pinToDashboard(JSON.parse(this.dataset.rows), this.dataset.sql)"
+                class="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+              >
+                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z"/></svg>
+                대시보드에 저장
+              </button>
+            </div>
+            {% endif %}
+          </div>
+        </div>
+        {% endif %}
+        {% endfor %}
+
+        <!-- Dynamic messages via Alpine -->
+        <template x-for="msg in dynamicMessages" :key="msg.id">
+          <div>
+            <!-- User message -->
+            <template x-if="msg.role === 'user'">
+              <div class="flex justify-end mb-6">
+                <div class="max-w-[80%] rounded-2xl rounded-tr-sm bg-brand-600 px-4 py-3 text-sm text-white shadow-sm" x-text="msg.content"></div>
+              </div>
+            </template>
+
+            <!-- Assistant message -->
+            <template x-if="msg.role === 'assistant'">
+              <div class="flex items-start gap-3 mb-6">
+                <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-100 text-brand-700">
+                  <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z"/>
+                  </svg>
+                </div>
+                <div class="flex-1 min-w-0 space-y-3">
+                  <!-- Error -->
+                  <template x-if="msg.error">
+                    <div class="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+                      <span x-text="msg.error === 'rate_limit' ? '⚠️ 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.' : msg.error === 'timeout' ? '⚠️ 응답 시간이 초과됐습니다.' : '⚠️ 오류: ' + msg.error"></span>
+                    </div>
+                  </template>
+                  <!-- Text answer -->
+                  <template x-if="msg.text">
+                    <div class="rounded-xl bg-white border border-slate-200 px-4 py-3 text-sm text-slate-800 shadow-sm leading-relaxed" x-html="msg.text.replace(/\n/g, '<br>')"></div>
+                  </template>
+                  <!-- SQL -->
+                  <template x-if="msg.query && msg.query.sql">
+                    <div class="rounded-xl overflow-hidden border border-slate-200 shadow-sm">
+                      <div class="flex items-center justify-between bg-slate-800 px-4 py-2">
+                        <span class="text-xs font-medium text-slate-300">생성된 SQL</span>
+                        <button @click="copyText(msg.query.sql)" class="text-xs text-slate-400 hover:text-white transition-colors">복사</button>
+                      </div>
+                      <pre class="overflow-x-auto bg-slate-900"><code class="language-sql text-xs" x-text="msg.query.sql"></code></pre>
+                    </div>
+                  </template>
+                  <!-- Table -->
+                  <template x-if="msg.query_result && msg.query_result.length > 0">
+                    <div class="overflow-hidden rounded-xl border border-slate-200 shadow-sm">
+                      <div class="bg-slate-50 px-4 py-2 border-b border-slate-200">
+                        <span class="text-xs font-medium text-slate-600" x-text="'조회 결과 (' + msg.query_result.length + '행)'"></span>
+                      </div>
+                      <div class="overflow-x-auto">
+                        <table class="data-table">
+                          <thead>
+                            <tr>
+                              <template x-for="col in Object.keys(msg.query_result[0])" :key="col">
+                                <th x-text="col"></th>
+                              </template>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <template x-for="(row, i) in msg.query_result.slice(0, 20)" :key="i">
+                              <tr>
+                                <template x-for="val in Object.values(row)" :key="val">
+                                  <td x-text="val !== null && val !== undefined ? val : '-'"></td>
+                                </template>
+                              </tr>
+                            </template>
+                          </tbody>
+                        </table>
+                      </div>
+                      <template x-if="msg.query_result.length > 20">
+                        <p class="px-4 py-2 text-xs text-slate-400 bg-slate-50 border-t border-slate-200" x-text="'… 외 ' + (msg.query_result.length - 20) + '개 행'"></p>
+                      </template>
+                    </div>
+                  </template>
+                  <!-- Suggested questions -->
+                  <template x-if="msg.suggested_questions && msg.suggested_questions.length > 0">
+                    <div class="flex flex-wrap gap-2 pt-1">
+                      <template x-for="q in msg.suggested_questions" :key="q">
+                        <button
+                          @click="$refs.input.value = q; $refs.input.focus()"
+                          class="rounded-full border border-brand-200 bg-brand-50 px-3 py-1 text-xs font-medium text-brand-700 hover:bg-brand-100 transition-colors"
+                          x-text="q"
+                        ></button>
+                      </template>
+                    </div>
+                  </template>
+                  <!-- Pin to dashboard -->
+                  <template x-if="msg.query_result && msg.query_result.length > 0">
+                    <div>
+                      <button
+                        @click="pinToDashboard(msg.query_result, msg.query ? msg.query.sql : '')"
+                        class="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+                      >
+                        <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z"/></svg>
+                        대시보드에 저장
+                      </button>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </template>
+          </div>
+        </template>
+
+        <!-- Loading -->
+        <div x-show="loading" class="flex items-start gap-3">
+          <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-100 text-brand-700">
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z"/>
+            </svg>
+          </div>
+          <div class="rounded-xl bg-white border border-slate-200 px-4 py-3 shadow-sm">
+            <div class="flex items-center gap-2">
+              <div class="flex gap-1">
+                <span class="h-2 w-2 rounded-full bg-slate-300 animate-bounce" style="animation-delay:0ms"></span>
+                <span class="h-2 w-2 rounded-full bg-slate-300 animate-bounce" style="animation-delay:150ms"></span>
+                <span class="h-2 w-2 rounded-full bg-slate-300 animate-bounce" style="animation-delay:300ms"></span>
+              </div>
+              <span class="text-xs text-slate-400">Databricks 분석 중...</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Empty state -->
+        <div x-show="!loading && dynamicMessages.length === 0 && {{ '0' if messages else '0' }} === 0" class="flex flex-col items-center justify-center py-20 text-center">
+          <div class="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-50">
+            <svg class="h-7 w-7 text-brand-600" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z"/>
+            </svg>
+          </div>
+          <h2 class="text-lg font-semibold text-slate-800">Genie에게 질문하세요</h2>
+          <p class="mt-2 max-w-sm text-sm text-slate-400">자연어로 데이터를 질문하면 SQL을 생성하고 결과를 보여드립니다.</p>
+          <div class="mt-6 flex flex-wrap justify-center gap-2">
+            {% for example in ["오늘 매출 상위 10개 상품은?", "지난 7일간 일별 주문 건수를 보여줘", "가장 많이 환불된 카테고리는?"] %}
+            <button
+              @click="$refs.input.value = '{{ example }}'; $refs.input.focus()"
+              class="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm text-slate-600 hover:bg-slate-50 transition-colors shadow-sm"
+            >{{ example }}</button>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Input -->
+    <div class="border-t border-slate-200 bg-white px-4 py-4">
+      <div class="mx-auto max-w-3xl">
+        <div class="flex items-end gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 focus-within:border-brand-400 focus-within:bg-white focus-within:ring-2 focus-within:ring-brand-100 transition-all shadow-sm">
+          <textarea
+            x-ref="input"
+            x-model="question"
+            @keydown.enter.prevent="if (!$event.shiftKey && !loading) sendMessage()"
+            rows="1"
+            placeholder="데이터에 관해 질문하세요... (Shift+Enter로 줄바꿈)"
+            class="flex-1 resize-none bg-transparent text-sm text-slate-900 placeholder-slate-400 outline-none max-h-32"
+            :disabled="loading"
+            @input="autoResize($el)"
+          ></textarea>
+          <button
+            @click="sendMessage()"
+            :disabled="loading || !question.trim()"
+            class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-600 text-white transition-all hover:bg-brand-700 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5"/>
+            </svg>
+          </button>
+        </div>
+        <p class="mt-2 text-center text-xs text-slate-400">Genie는 실수를 할 수 있습니다. 중요한 결정 전에 결과를 검토하세요.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /x-data wrapper -->
+
+<!-- ── Pin to Dashboard Modal (순수 vanilla JS) ────────────── -->
+<div id="pin-modal" class="hidden fixed inset-0 z-[200] flex items-center justify-center bg-black/50 px-4" onclick="if(event.target===this) closePinModal()">
+  <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+    <h3 class="text-lg font-semibold text-slate-900 mb-4">대시보드에 저장</h3>
+    <div class="space-y-4">
+      <div>
+        <label class="label-text" for="pin-title">타일 제목</label>
+        <input id="pin-title" type="text" class="input-field mt-1" placeholder="분석 결과 타이틀" />
+      </div>
+      <div>
+        <label class="label-text" for="pin-chart-type">차트 유형</label>
+        <select id="pin-chart-type" class="input-field mt-1">
+          <option value="table">테이블</option>
+          <option value="bar">막대 차트</option>
+          <option value="line">라인 차트</option>
+          <option value="pie">파이 차트</option>
+        </select>
+      </div>
+      <div>
+        <label class="label-text">저장할 대시보드</label>
+        <div id="pin-dashboard-list" class="mt-2 space-y-2 max-h-40 overflow-y-auto">
+          <p class="text-sm text-slate-400 py-2">불러오는 중...</p>
+        </div>
+      </div>
+    </div>
+    <div class="mt-6 flex justify-end gap-3">
+      <button onclick="closePinModal()" class="btn-secondary">취소</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function chatApp(initialSessionId) {
+  return {
+    question: '',
+    loading: false,
+    sessionId: initialSessionId,
+    dynamicMessages: [],
+
+    async sendMessage() {
+      const q = this.question.trim();
+      if (!q || this.loading) return;
+
+      this.question = '';
+      this.$nextTick(() => { if (this.$refs.input) this.$refs.input.style.height = 'auto'; });
+
+      this.dynamicMessages.push({ id: Date.now(), role: 'user', content: q });
+      this.loading = true;
+      this.scrollToBottom();
+
+      try {
+        const res = await fetch('/api/ask', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question: q, session_id: this.sessionId }),
+        });
+        const data = await res.json();
+
+        if (!this.sessionId && data.session_id) {
+          this.sessionId = data.session_id;
+          history.pushState({}, '', `/chat/${data.session_id}`);
+        }
+
+        this.dynamicMessages.push({
+          id: data.message_id || Date.now(),
+          role: 'assistant',
+          text: data.text,
+          query: data.query,
+          query_result: data.query_result,
+          suggested_questions: data.suggested_questions || [],
+          error: data.error,
+        });
+
+        // Re-highlight SQL
+        this.$nextTick(() => {
+          document.querySelectorAll('code.language-sql:not([data-highlighted])').forEach(el => {
+            hljs.highlightElement(el);
+          });
+          this.scrollToBottom();
+        });
+      } catch (e) {
+        this.dynamicMessages.push({ id: Date.now(), role: 'assistant', error: e.message });
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    scrollToBottom() {
+      this.$nextTick(() => {
+        const el = document.getElementById('chat-messages');
+        if (el) el.scrollTop = el.scrollHeight;
+      });
+    },
+
+    autoResize(el) {
+      el.style.height = 'auto';
+      el.style.height = Math.min(el.scrollHeight, 128) + 'px';
+    },
+
+    async deleteSession(id) {
+      if (!confirm('이 대화를 삭제할까요?')) return;
+      await fetch(`/api/sessions/${id}`, { method: 'DELETE' });
+      if (this.sessionId === id) window.location.href = '/chat';
+      else window.location.reload();
+    },
+
+    pinToDashboard(rows, sql) {
+      pinToDashboard(rows, sql);
+    },
+
+    copyText(text) {
+      navigator.clipboard.writeText(text).then(() => alert('복사됐습니다.'));
+    },
+  };
+}
+
+function copySQL(btn) {
+  navigator.clipboard.writeText(btn.dataset.sql).then(() => {
+    btn.textContent = '복사됨!';
+    setTimeout(() => btn.textContent = '복사', 2000);
+  });
+}
+
+/* ── Pin to Dashboard (vanilla JS, Alpine 스코프 독립) ── */
+let _pinRows = null;
+let _pinSql  = '';
+
+async function pinToDashboard(rows, sql) {
+  _pinRows = rows;
+  _pinSql  = sql;
+
+  document.getElementById('pin-title').value = '';
+  document.getElementById('pin-chart-type').value = 'table';
+
+  const list = document.getElementById('pin-dashboard-list');
+  list.innerHTML = '<p class="text-sm text-slate-400 py-2">불러오는 중...</p>';
+  document.getElementById('pin-modal').classList.remove('hidden');
+
+  try {
+    const res  = await fetch('/api/dashboards-list');
+    const data = res.ok ? await res.json() : { dashboards: [] };
+    const boards = data.dashboards || [];
+
+    if (boards.length === 0) {
+      list.innerHTML = `
+        <a href="/dashboard/new" class="flex items-center gap-2 rounded-lg border border-dashed border-slate-300 px-3 py-2 text-sm text-slate-500 hover:border-brand-400 hover:text-brand-600 transition-colors">
+          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+          대시보드가 없습니다. 먼저 만들어주세요.
+        </a>`;
+    } else {
+      list.innerHTML = boards.map(d => `
+        <button onclick="savePinTile(${d.id})"
+          class="w-full flex items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors">
+          <span>${d.name}</span>
+          <svg class="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"/></svg>
+        </button>`).join('');
+    }
+  } catch (e) {
+    list.innerHTML = '<p class="text-sm text-red-500 py-2">목록을 불러오지 못했습니다.</p>';
+  }
+}
+
+async function savePinTile(dashboardId) {
+  const title     = document.getElementById('pin-title').value.trim();
+  const chartType = document.getElementById('pin-chart-type').value;
+  if (!title) { alert('타일 제목을 입력해주세요.'); return; }
+
+  const res = await fetch(`/api/dashboards/${dashboardId}/tiles`, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ title, query_sql: _pinSql, query_result: _pinRows, chart_type: chartType }),
+  });
+
+  closePinModal();
+  if (res.ok) {
+    if (confirm('저장됐습니다! 대시보드로 이동할까요?')) {
+      window.location.href = `/dashboard/${dashboardId}`;
+    }
+  } else {
+    alert('저장 중 오류가 발생했습니다.');
+  }
+}
+
+function closePinModal() {
+  document.getElementById('pin-modal').classList.add('hidden');
+}
+</script>
+{% endblock %}

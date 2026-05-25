@@ -5,3 +5,8 @@ __pycache__/
 *.pyc
 .DS_Store
 first_request/csv/
+*.db
+*.db-shm
+*.db-wal
+.venv/
+venv/
