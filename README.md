@@ -74,6 +74,7 @@ genie-web-app/
 ├── static/
 │   └── css/style.css
 ├── Dockerfile
+├── cloudbuild.yaml      # Cloud Build CI/CD (빌드 → 배포 → Slack 알림)
 ├── requirements.txt
 └── .env.example
 ```
@@ -115,34 +116,54 @@ uvicorn app.main:app --reload --port 8000
 
 `http://localhost:8000` 접속 후 회원가입 → Genie 채팅 시작
 
-### Cloud Run 배포
+### Cloud Run 배포 (CI/CD)
 
-```bash
-gcloud run deploy genie-web-app \
-  --source . \
-  --region asia-northeast3 \
-  --allow-unauthenticated \
-  --set-secrets DATABRICKS_HOST=genie-databricks-host:latest \
-  --set-secrets DATABRICKS_TOKEN=genie-databricks-token:latest \
-  --set-secrets GENIE_SPACE_ID=genie-space-id:latest \
-  --set-secrets SECRET_KEY=genie-web-secret-key:latest \
-  --set-secrets DATABASE_URL=genie-web-db-url:latest
+`main` 브랜치에 푸시하면 Cloud Build가 자동으로 트리거됩니다.
+
+```
+git push origin main
+  → Cloud Build 트리거
+  → Docker 빌드 & Artifact Registry 푸시
+  → Cloud Run 배포 (Secret Manager 시크릿 마운트 + Cloud SQL 연결)
+  → Slack Block Kit 배포 완료 알림
 ```
 
-> **CI/CD**: `main` 브랜치 푸쉬 시 Cloud Build + Cloud Run 자동 배포를 설정하려면
-> Cloud Build 트리거를 GitHub 레포에 연결하세요.
+**초기 설정 (최초 1회)**
 
-### 프로덕션 DB (Cloud SQL)
+1. GCP Secret Manager에 아래 시크릿 등록
 
-SQLite는 Cloud Run의 ephemeral 파일시스템에 저장되므로 **재시작 시 데이터가 사라집니다**.  
-프로덕션에서는 Cloud SQL (PostgreSQL)을 사용하세요.
+| 시크릿 이름 | 값 |
+|------------|-----|
+| `DATABRICKS_HOST` | Databricks Workspace 호스트 |
+| `DATABRICKS_TOKEN` | Databricks PAT |
+| `GENIE_SPACE_ID` | Genie Space ID |
+| `SECRET_KEY` | 64자 랜덤 hex 문자열 |
+| `DATABASE_URL` | `postgresql+psycopg2://USER:PASS@/DBNAME?host=/cloudsql/PROJECT:REGION:INSTANCE` |
+| `CLOUD_BUILD_SLACK_WEBHOOK_URL` | Slack Incoming Webhook URL |
 
-```bash
-# requirements.txt에 추가
-psycopg2-binary==2.9.9
+2. Cloud Build SA (`[PROJECT_NUMBER]@cloudbuild.gserviceaccount.com`) IAM 역할 부여
+   - `roles/run.admin`
+   - `roles/artifactregistry.writer`
+   - `roles/secretmanager.secretAccessor`
+   - `roles/iam.serviceAccountUser`
 
-# DATABASE_URL 형식
-postgresql+psycopg2://USER:PASS@/DBNAME?host=/cloudsql/PROJECT:REGION:INSTANCE
+3. Cloud Run SA (`[PROJECT_NUMBER]-compute@developer.gserviceaccount.com`) IAM 역할 부여
+   - `roles/secretmanager.secretAccessor`
+   - `roles/cloudsql.client`
+
+4. Cloud Build 트리거 → 구성 유형: **Cloud Build 구성 파일(YAML)** → 위치: **저장소** → `/cloudbuild.yaml`
+
+### 프로덕션 DB (Cloud SQL PostgreSQL)
+
+Cloud Run은 ephemeral 파일시스템이라 SQLite 사용 시 재시작 때 데이터가 사라집니다.  
+프로덕션에서는 Cloud SQL (PostgreSQL)을 사용하며, `cloudbuild.yaml`의 `--add-cloudsql-instances` 플래그로 자동 연결됩니다.
+
+```
+# Cloud SQL 인스턴스 연결명 형식
+PROJECT_ID:REGION:INSTANCE_NAME
+
+# DATABASE_URL 형식 (Unix 소켓, Cloud SQL Auth Proxy 내장)
+postgresql+psycopg2://USER:PASS@/DBNAME?host=/cloudsql/PROJECT_ID:REGION:INSTANCE_NAME
 ```
 
 ---
